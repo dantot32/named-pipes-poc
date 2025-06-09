@@ -1,30 +1,98 @@
-﻿Imports System.IO.Pipes
+﻿Imports System.IO
+Imports System.IO.Pipes
 Imports System.Text
+
+' payload taken from
+' https://learn.microsoft.com/en-us/dotnet/standard/io/how-to-use-named-pipes-for-network-interprocess-communication
 
 Public Class Form1
 
-    Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+    Private client As NamedPipeClientStream
+    Private reader As StreamReader
+    Private writer As StreamWriter
 
-        Me.Text = "Named Pipe Server Example"
+    Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
 
-        Dim c As New TextBox
-        c.ReadOnly = True
-        c.Multiline = True
-        c.Dock = DockStyle.Fill
-        c.ScrollBars = ScrollBars.Both
-        Me.Controls.Add(c)
+        Me.Text = "Named Pipe Client Example"
 
-        Dim server = New NamedPipeServerStream("mypipe", PipeDirection.InOut, 1)
-        c.Text = "Waiting for client connection..."
-        server.WaitForConnection()
-        c.Text = c.Text & vbNewLine & "Client connected."
+        ' chat
+        Dim chat As New TextBox
+        chat.ReadOnly = True
+        chat.BorderStyle = BorderStyle.None
+        chat.Multiline = True
+        chat.Dock = DockStyle.Fill
+        chat.ScrollBars = ScrollBars.Both
+        Me.Controls.Add(chat)
 
-        Dim buffer(255) As Byte
-        Dim bytesRead = server.Read(buffer, 0, buffer.Length)
-        c.Text = c.Text & vbNewLine & "Received: " & Encoding.UTF8.GetString(buffer, 0, bytesRead)
+        ' text
+        Dim text As New TextBox
+        text.Dock = DockStyle.Bottom
+        text.Height = 30
+        text.Multiline = False
+        text.BorderStyle = BorderStyle.FixedSingle
+        text.Text = "Type your message here..."
+        Me.Controls.Add(text)
 
-        server.Write(Encoding.UTF8.GetBytes("Ok"), 0, 2)
-        server.Dispose()
+        ' button
+        Dim button As New Button
+        button.Text = "Send"
+        button.Dock = DockStyle.Bottom
+        button.Height = 30
+        button.Enabled = True
+        Me.Controls.Add(button)
+        AddHandler button.Click, Async Sub(s, args)
+
+                                     If String.IsNullOrWhiteSpace(text.Text) Then Exit Sub
+
+                                     button.Enabled = False
+                                     Dim command = text.Text
+
+                                     ' send message
+                                     Await writer.WriteLineAsync(command)
+
+                                     ' read message
+                                     Dim response = Await reader.ReadLineAsync()
+
+                                     ' report message
+                                     chat.Text = chat.Text & vbNewLine & response
+                                     text.Clear()
+                                     button.Enabled = True
+
+                                 End Sub
+
+        client = New NamedPipeClientStream(".", "named-pipes-poc", PipeDirection.InOut, PipeOptions.Asynchronous)
+
+        Threading.Thread.Sleep(1000) ' Wait for the server to start
+        Await client.ConnectAsync()
+        chat.Text = "Connected to server!"
+
+        reader = New StreamReader(client, Encoding.UTF8)
+        writer = New StreamWriter(client, Encoding.UTF8)
+
+    End Sub
+
+    Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
+
+        If client IsNot Nothing Then client.Dispose()
+
+        If reader IsNot Nothing Then
+
+            If reader.BaseStream IsNot Nothing Then
+                reader.Close()
+            End If
+            reader.Dispose()
+
+        End If
+
+        If writer IsNot Nothing Then
+
+            If writer.BaseStream IsNot Nothing Then
+                writer.Flush()
+                writer.Close()
+            End If
+            writer.Dispose()
+
+        End If
 
     End Sub
 

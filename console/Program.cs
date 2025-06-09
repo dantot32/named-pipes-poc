@@ -1,20 +1,33 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿
 using System.IO.Pipes;
 using System.Text;
 
-var client = new NamedPipeClientStream(".", "mypipe", PipeDirection.InOut);
-client.Connect();
-Console.WriteLine("Connected to server.");
-Console.WriteLine("Sending: Hello, server! ");
+Console.WriteLine("Starting pipe server...");
 
-client.Write(Encoding.UTF8.GetBytes("Hello, server!"), 0, 14);
+using var server = new NamedPipeServerStream("named-pipes-poc", PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
-byte[] buffer = new byte[256];
-var bytesRead = client.Read(buffer, 0, buffer.Length);
-Console.WriteLine("Server replied: " + Encoding.UTF8.GetString(buffer, 0, bytesRead));
+// accepts a client connection asynchronously
+await server.WaitForConnectionAsync();
+Console.WriteLine("Client connected!");
 
-client.Dispose();
+while (true)
+{
 
+    // Create a StreamReader and StreamWriter for reading and writing to the pipe
+    using var reader = new StreamReader(server, Encoding.UTF8);
+    using var writer = new StreamWriter(server, Encoding.UTF8); // { AutoFlush = true };
 
+    // Read messages from the client and respond
+    var message = await reader.ReadLineAsync();
+    if (message == null) break;
+    Console.WriteLine($"Received: {message}");
+
+    // Respond to the client
+    await writer.WriteLineAsync("Thanks from server");
+    Console.WriteLine($"Responded: Thanks from server");
+
+    // Wait for the client to disconnect
+    server.Disconnect();
+}
 
 
