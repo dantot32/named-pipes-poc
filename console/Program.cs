@@ -1,5 +1,8 @@
 ﻿
+using console;
+using Newtonsoft.Json;
 using System.IO.Pipes;
+using System.Security.Cryptography;
 using System.Text;
 
 Console.WriteLine("Starting pipe server...");
@@ -10,24 +13,20 @@ using var server = new NamedPipeServerStream("named-pipes-poc", PipeDirection.In
 await server.WaitForConnectionAsync();
 Console.WriteLine("Client connected!");
 
+var reader = new StreamReader(server);
+var writer = new StreamWriter(server);
+
 while (true)
 {
+    PipeStream pipe = (PipeStream)reader.BaseStream;
 
-    // Create a StreamReader and StreamWriter for reading and writing to the pipe
-    using var reader = new StreamReader(server, Encoding.UTF8);
-    using var writer = new StreamWriter(server, Encoding.UTF8); // { AutoFlush = true };
+    Console.WriteLine("Waiting for new messages ...");
+    // get the message
+    var p = await PayloadPipe.ReadAsync(pipe);
+    Console.WriteLine(p);
 
-    // Read messages from the client and respond
-    var message = await reader.ReadLineAsync();
-    if (message == null) break;
-    Console.WriteLine($"Received: {message}");
-
-    // Respond to the client
-    await writer.WriteLineAsync("Thanks from server");
-    Console.WriteLine($"Responded: Thanks from server");
-
-    // Wait for the client to disconnect
-    server.Disconnect();
 }
+
+
 
 

@@ -14,3 +14,12 @@ After the two projects has been created, change the target framework to 4.7.2.
 <!-- in winform proj file -->
 <TargetFramework>net472</TargetFramework>
 ```
+
+## Write Flow
+
+Payload -> json (string) -> byte -> 
+
+* define a payload type
+* serialize in json (to convert from obj to string)
+* convert from string to byte
+* compute sha256

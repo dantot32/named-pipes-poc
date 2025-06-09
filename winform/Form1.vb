@@ -1,96 +1,106 @@
 ﻿Imports System.IO
 Imports System.IO.Pipes
+Imports System.Runtime.Serialization
+Imports System.Security.Cryptography
+Imports System.Security.Policy
 Imports System.Text
+Imports Newtonsoft.Json
 
 ' payload taken from
 ' https://learn.microsoft.com/en-us/dotnet/standard/io/how-to-use-named-pipes-for-network-interprocess-communication
 
 Public Class Form1
 
-    Private client As NamedPipeClientStream
-    Private reader As StreamReader
-    Private writer As StreamWriter
+    Private _client As NamedPipeClientStream
+    Private _reader As StreamReader
+    Private _writer As StreamWriter
+    Private WithEvents _chat As TextBox
+    Private WithEvents _textEditor As TextBox
+    Private WithEvents _button As Button
 
     Private Async Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
 
         Me.Text = "Named Pipe Client Example"
 
         ' chat
-        Dim chat As New TextBox
-        chat.ReadOnly = True
-        chat.BorderStyle = BorderStyle.None
-        chat.Multiline = True
-        chat.Dock = DockStyle.Fill
-        chat.ScrollBars = ScrollBars.Both
-        Me.Controls.Add(chat)
+        _chat = New TextBox
+        With _chat
+            .ReadOnly = True
+            .BorderStyle = BorderStyle.None
+            .Multiline = True
+            .Dock = DockStyle.Fill
+            .ScrollBars = ScrollBars.Both
+        End With
+        Me.Controls.Add(_chat)
 
         ' text
-        Dim text As New TextBox
-        text.Dock = DockStyle.Bottom
-        text.Height = 30
-        text.Multiline = False
-        text.BorderStyle = BorderStyle.FixedSingle
-        text.Text = "Type your message here..."
-        Me.Controls.Add(text)
+        _textEditor = New TextBox
+        With _textEditor
+            .Dock = DockStyle.Bottom
+            .Height = 30
+            .Multiline = False
+            .BorderStyle = BorderStyle.FixedSingle
+            .Text = "Type your message here..."
+        End With
+        Me.Controls.Add(_textEditor)
 
         ' button
-        Dim button As New Button
-        button.Text = "Send"
-        button.Dock = DockStyle.Bottom
-        button.Height = 30
-        button.Enabled = True
-        Me.Controls.Add(button)
-        AddHandler button.Click, Async Sub(s, args)
+        _button = New Button
+        With _button
+            .Text = "Send"
+            .Dock = DockStyle.Bottom
+            .Height = 30
+            .Enabled = True
+        End With
+        Me.Controls.Add(_button)
 
-                                     If String.IsNullOrWhiteSpace(text.Text) Then Exit Sub
-
-                                     button.Enabled = False
-                                     Dim command = text.Text
-
-                                     ' send message
-                                     Await writer.WriteLineAsync(command)
-
-                                     ' read message
-                                     Dim response = Await reader.ReadLineAsync()
-
-                                     ' report message
-                                     chat.Text = chat.Text & vbNewLine & response
-                                     text.Clear()
-                                     button.Enabled = True
-
-                                 End Sub
-
-        client = New NamedPipeClientStream(".", "named-pipes-poc", PipeDirection.InOut, PipeOptions.Asynchronous)
+        _client = New NamedPipeClientStream(".", "named-pipes-poc", PipeDirection.InOut, PipeOptions.Asynchronous)
 
         Threading.Thread.Sleep(1000) ' Wait for the server to start
-        Await client.ConnectAsync()
-        chat.Text = "Connected to server!"
+        Await _client.ConnectAsync()
+        _chat.Text = "Connected to server!"
 
-        reader = New StreamReader(client, Encoding.UTF8)
-        writer = New StreamWriter(client, Encoding.UTF8)
+        _reader = New StreamReader(_client)
+        _writer = New StreamWriter(_client)
+
+    End Sub
+
+    Private Async Sub ButtonClick() Handles _button.Click
+
+        If String.IsNullOrWhiteSpace(_textEditor.Text) Then Exit Sub
+
+        _button.Enabled = False
+        Dim command = _textEditor.Text
+
+        ' create payload
+        Dim p As New Payload With {.Command = command, .Data = "43"}
+
+        Await PayloadPipe.SendAsync(_writer.BaseStream, p)
+
+        ' report message
+        _chat.Text = _chat.Text & vbNewLine & p.ToString
+
+        _textEditor.Clear()
+        _button.Enabled = True
 
     End Sub
 
     Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
 
-        If client IsNot Nothing Then client.Dispose()
+        If _client IsNot Nothing Then _client.Dispose()
 
-        If reader IsNot Nothing Then
+        If _reader IsNot Nothing Then
 
-            If reader.BaseStream IsNot Nothing Then
-                reader.Close()
+            If _reader.BaseStream IsNot Nothing Then
+                _reader.Close()
             End If
-            reader.Dispose()
+            _reader.Dispose()
 
         End If
 
-        If writer IsNot Nothing Then
+        If _writer IsNot Nothing Then
 
-            If writer.BaseStream IsNot Nothing Then
-                writer.Flush()
-                writer.Close()
-            End If
-            writer.Dispose()
+            _writer.Dispose()
 
         End If
 

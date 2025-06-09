@@ -1,6 +1,4 @@
 ﻿Imports System.IO
-Imports System.IO.Pipes
-Imports System.Text
 
 Friend Module Program
 
